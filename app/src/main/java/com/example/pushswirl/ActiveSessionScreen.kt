@@ -1,6 +1,8 @@
 package org.kreatrix.pushswirl
 
 import android.app.Activity
+import android.content.Context
+import android.media.AudioManager
 import android.view.WindowManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,12 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -283,7 +287,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             color = MaterialTheme.colorScheme.primary
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = action.name,
@@ -295,7 +299,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 MaterialTheme.colorScheme.secondary
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Action countdown (15s)
         Text(
@@ -383,6 +387,67 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Volume control (only when sound is enabled)
+        if (viewModel.notificationSettings.soundEnabled) {
+            val audioManager = LocalContext.current.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val sysVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val systemFraction = if (maxVol > 0) sysVol.toFloat() / maxVol else 1f
+
+            val customVolume = viewModel.notificationSettings.volumeLevel
+            val sliderValue = customVolume ?: systemFraction
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Volume",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (customVolume != null) "${(sliderValue * 100).roundToInt()}%" else "System",
+                        fontSize = 14.sp,
+                        color = if (customVolume != null)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                    TextButton(
+                        onClick = {
+                            viewModel.updateNotificationSettings(
+                                viewModel.notificationSettings.copy(volumeLevel = null)
+                            )
+                        },
+                        enabled = customVolume != null,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        modifier = Modifier.alpha(if (customVolume != null) 1f else 0f)
+                    ) {
+                        Text("Reset", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            Slider(
+                value = sliderValue,
+                onValueChange = { newValue ->
+                    viewModel.updateNotificationSettings(
+                        viewModel.notificationSettings.copy(volumeLevel = newValue)
+                    )
+                },
+                valueRange = 0f..1f,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

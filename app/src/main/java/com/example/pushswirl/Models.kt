@@ -88,5 +88,7 @@ data class SessionStats(
 
 data class NotificationSettings(
     val vibrationEnabled: Boolean = true,
-    val soundEnabled: Boolean = true
+    val soundEnabled: Boolean = true,
+    // null = use current system volume; 0f..1f = fraction of hardware max volume
+    val volumeLevel: Float? = null
 )

@@ -3,6 +3,7 @@
 ## Unreleased
 
 * "Screen always on" while session is running
+* Custom audio volume settings
 * Export/Import buttons moved to Session History
 * Dark theme
 

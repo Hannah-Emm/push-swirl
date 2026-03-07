@@ -3,9 +3,11 @@ package org.kreatrix.pushswirl
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.*
 import androidx.core.app.NotificationCompat
+import kotlin.math.roundToInt
 
 enum class NotificationEvent {
     PUSH_BEGIN,
@@ -31,6 +33,7 @@ class TimerService : Service() {
     private var vibrator: Vibrator? = null
     private var vibrationEnabled = true
     private var soundEnabled = true
+    private var customVolume: Float? = null
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -63,6 +66,8 @@ class TimerService : Service() {
             else -> {
                 vibrationEnabled = intent?.getBooleanExtra("vibrationEnabled", true) ?: true
                 soundEnabled = intent?.getBooleanExtra("soundEnabled", true) ?: true
+                val vol = intent?.getFloatExtra("volumeLevel", -1f) ?: -1f
+                customVolume = if (vol < 0f) null else vol
                 isRunning = true
                 startForeground(1, createNotification())
             }
@@ -73,6 +78,7 @@ class TimerService : Service() {
     fun updateNotificationSettings(settings: NotificationSettings) {
         vibrationEnabled = settings.vibrationEnabled
         soundEnabled = settings.soundEnabled
+        customVolume = settings.volumeLevel
     }
 
     private fun createNotificationChannel() {
@@ -150,24 +156,37 @@ class TimerService : Service() {
     }
 
     fun makeNotification(type: NotificationEvent) {
+        val restore = applyCustomVolume()
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
-                playSound(R.raw.beep_long)
+                playSound(R.raw.beep_long, restore)
                 if (vibrationEnabled) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
-                playSound(R.raw.beep_short) { playSound(R.raw.beep_short) }
+                playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
                 if (vibrationEnabled) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
                 playSound(R.raw.beep_long) {
                     playSound(R.raw.beep_long) {
-                        playSound(R.raw.beep_long)
+                        playSound(R.raw.beep_long, restore)
                     }
                 }
                 if (vibrationEnabled) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }
+    }
+
+    // Sets the stream volume to the user-configured level and returns a lambda that restores
+    // the original volume. Returns null when using system volume (nothing to restore).
+    private fun applyCustomVolume(): (() -> Unit)? {
+        val vol = customVolume ?: return null
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val originalVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val targetVol = (vol * maxVol).roundToInt().coerceIn(0, maxVol)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+        return { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVol, 0) }
     }
 
     private fun vibrate(pattern: LongArray) {
